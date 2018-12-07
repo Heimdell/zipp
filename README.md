@@ -41,6 +41,10 @@ This example doesn't include `Handlers` for the sake of brevity. Basically, the 
 be done after you do something. They return a `Bool` and if its `False`, their effect on the object
 is discarded (but not the effect on the additional state!).
 
+## Documentation
+
+You can do `stack haddock`.
+
 ## Capabilites
 
 This is an implementation of iterator that can
