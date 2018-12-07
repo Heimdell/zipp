@@ -1,11 +1,11 @@
 
-{-# language RankNTypes #-}
-{-# language GeneralizedNewtypeDeriving #-}
-{-# language TemplateHaskell #-}
-{-# language NamedFieldPuns #-}
-{-# language FlexibleContexts #-}
-{-# language LambdaCase #-}
-{-# language ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE NamedFieldPuns             #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TemplateHaskell            #-}
 
 {-|
 
@@ -41,7 +41,7 @@
     >       go right
     >       go right
     >       return res
-    > 
+    >
     >   print res
 
     The 'tree'' should be a 'tree' with "lol" replaced by \"HELLO" and the 'res' would be "bar".
@@ -53,7 +53,7 @@
     == Capabilites
 
     This is an implementation of iterator that can
-    
+
     1. `go` down the structure using a `Lens` (that might fail to deliver the destination).
     2. Go `up` to the parent node.
     3. Perform `change` on a node.
@@ -78,7 +78,7 @@
     == Handlers.
 
     Handlers are used if you want to update your structure after changes in some non-trivial way.
-    
+
     1. `onUp` will fire if you go `up`, it will receive `Bool` argument specifying if there were any changes.
     2. `onDown` will fire each time you `go` somewhere. It will also receive the name of the direction.
     3. `onChange` will fire each time you call `change` - so you can post-update your structure.
@@ -88,7 +88,7 @@
     It doesn't depend on @lens@ package, I used @microlens-platform@ instead.
 -}
 
-module Zipp 
+module Zipp
     ( -- * Zipper
       Action
     , with, Config(..)
@@ -117,14 +117,18 @@ module Zipp
     )
   where
 
-import Control.Monad (when)
-import Control.Monad.State (MonadState(..), MonadTrans(..), StateT(..), execStateT)
-import Control.Monad.Reader (MonadReader(..), ReaderT(..), asks)
-import Control.Monad.Catch (Exception, MonadThrow(..), MonadCatch(..))
+import           Control.Monad        (when)
+import           Control.Monad.Catch  (Exception, MonadCatch (..),
+                                       MonadThrow (..))
+import           Control.Monad.Reader (MonadReader (..), ReaderT (..), asks)
+import           Control.Monad.State  (MonadState (..), MonadTrans (..),
+                                       StateT (..), execStateT)
 
-import Data.Typeable (Typeable)
+import           Data.Typeable        (Typeable)
 
-import Lens.Micro.Platform (Traversal', SimpleGetter, makeLenses, singular, to, use, (.=), (&), (^.), (^?), (.=), (%=), (.~))
+import           Lens.Micro.Platform  (SimpleGetter, Traversal', makeLenses,
+                                       singular, to, use, (%=), (&), (.=), (.~),
+                                       (^.), (^?))
 
 data ZipperState ext dir a m = ZipperState
     { _ext   :: ext
@@ -278,7 +282,7 @@ up = do
     use loci >>= \case
         [] -> do
             throwM CantGoUp
-        
+
         prev : rest -> do
             isDirty <- use dirty
             plugHandler . ($ isDirty) =<< asks onUp
@@ -288,7 +292,7 @@ up = do
             then do
                 loc  <- use locus
                 loc' <- lift $ (prev^.cameFrom.to jamIn) (prev^.place) loc
-                
+
                 locus .= loc'
                 dirty .= True
 
@@ -316,7 +320,7 @@ go dir = do
     plugHandler . ($ designation dir) =<< asks onDown
 
     upd  <- use dirty
-    
+
     loci  %= (Layer dir loc upd :)
     locus .= loc'
     dirty .= False
@@ -417,7 +421,7 @@ test = do
                 a <- use $ here.naem
                 situation %= (++ if yeah then ["UP!", a] else ["up", a])
                 return False
-            
+
             , onDown = \(dir :: Dir) -> do
                 a <- use $ here.naem
                 situation %= (++ [show dir, a])
@@ -433,7 +437,7 @@ test = do
 
       left  = fromTraversal L l
       right = fromTraversal R r
-    
+
     res <- with config tree $ do
         go left
         go left
