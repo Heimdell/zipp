@@ -53,8 +53,7 @@ This is an implementation of iterator that can
 Also, each of these `Action`s triggers a handler you provided.
 
 You run it `with` some object, `Config`uration (additional state and `Handlers`) and an `Action`
-to be performed. After its done with its actions, it reconstructs the object as a whole
-- also returning final form of additional state and an action result.
+to be performed. After its done with its actions, it reconstructs the object as a whole - also returning final form of additional state and an action result.
 
 You can also run it using `with'`. In that case you don't have to provide
 additional state (will be `()`) and handlers (will be inert).
@@ -76,4 +75,4 @@ Handlers are used if you want to update your structure after changes in some non
 
 ## Dependencies
 
-It doesn't depend on @lens@ package, I used @microlens-platform@ instead.
+It doesn't depend on [lens](http://hackage.haskell.org/package/lens) package, I used [microlens-platform](http://hackage.haskell.org/package/microlens-platform) instead.
