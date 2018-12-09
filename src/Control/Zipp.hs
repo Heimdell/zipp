@@ -114,6 +114,9 @@ module Control.Zipp
       -- * Helpers
     , fromTraversal
     , reconstruct
+
+      -- * Lift
+    , lift
     )
   where
 
