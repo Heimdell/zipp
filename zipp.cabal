@@ -16,7 +16,7 @@ extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Zipp
+  exposed-modules:     Control.Zipp
   -- other-modules:       
   -- other-extensions:    
   build-depends:       base, microlens-platform, mtl, exceptions, transformers
