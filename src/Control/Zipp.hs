@@ -133,14 +133,15 @@ import           Lens.Micro.Platform  (SimpleGetter, Traversal', makeLenses,
 data ZipperState ext dir a m = ZipperState
     { _ext   :: ext
     , _locus :: a
-    , _loci  :: [Layer dir a m]
+    , _loci  :: [Layer ext dir a m]
     , _dirty :: Bool
     }
 
-data Layer dir a m = Layer
+data Layer ext dir a m = Layer
     { _cameFrom :: Direction dir a m
     , _place    :: a
     , _update   :: Bool
+    , _prevExt  :: ext
     }
 
 -- | The state the handler has access to.
@@ -172,6 +173,7 @@ data Handlers ext dir a m = Handlers
     { onUp     :: Bool -> Handler ext a m  -- ^ /Before/ we go up or finally exit.
     , onDown   :: dir  -> Handler ext a m  -- ^ /Before/ we go specified direction.
     , onChange ::         Handler ext a m  -- ^ /After/ `change` is called.
+    , mergeExt :: ext  -> Handler ext a m
     }
 
 -- | Configuration for zipper to run.
@@ -300,6 +302,8 @@ up = do
                 locus .= prev^.place
                 dirty .= prev^.update
 
+            plugHandler . ($ _prevExt prev) =<< asks mergeExt
+
             return $ prev^.cameFrom.to designation
 
 -- | Thrown if its impossible to move where you want.
@@ -320,8 +324,9 @@ go dir = do
     plugHandler . ($ designation dir) =<< asks onDown
 
     upd  <- use dirty
+    ext  <- use ext
 
-    loci  %= (Layer dir loc upd :)
+    loci  %= (Layer dir loc upd ext :)
     locus .= loc'
     dirty .= False
 
