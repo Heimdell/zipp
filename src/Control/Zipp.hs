@@ -115,8 +115,9 @@ module Control.Zipp
     , fromTraversal
     , reconstruct
 
-      -- * Lift
+      -- * Lifts
     , lift
+    , liftIO
     )
   where
 
@@ -125,7 +126,7 @@ import           Control.Monad.Catch  (Exception, MonadCatch (..),
                                        MonadThrow (..))
 import           Control.Monad.Reader (MonadReader (..), ReaderT (..), asks)
 import           Control.Monad.State  (MonadState (..), MonadTrans (..),
-                                       StateT (..), execStateT)
+                                       StateT (..), execStateT, liftIO)
 
 import           Data.Typeable        (Typeable)
 
