@@ -79,16 +79,16 @@
 
     Handlers are used if you want to update your structure after changes in some non-trivial way.
 
-    1. `onUp` will fire if you go `up`, it will receive `Bool` argument specifying if there were any changes.
-    2. `onDown` will fire each time you `go` somewhere. It will also receive the name of the direction.
-    3. `onChange` will fire each time you call `change` - so you can post-update your structure.
+    1. `onUp` will fire /before/ you go `up`, it will receive `Bool` argument specifying if there were any changes.
+    2. `onDown` will fire /before/ you `go` somewhere. It will also receive the name of the direction.
+    3. `onChange` will fire /after/ each change to the locus - so you can post-update your structure.
 
     == Dependencies
 
     It doesn't depend on @lens@ package, I used @microlens-platform@ instead.
 -}
 
-module Zipp
+module Control.Zipp
     ( -- * Zipper
       Action
     , with, Config(..)
@@ -169,9 +169,9 @@ type Handler ext a m = StateT (HandlersEnv ext a) m Bool
 
 -- | Bag of handlers.
 data Handlers ext dir a m = Handlers
-    { onUp     :: Bool -> Handler ext a m  -- ^ When we go up or finally exit.
-    , onDown   :: dir  -> Handler ext a m  -- ^ When we go specified direction.
-    , onChange ::         Handler ext a m  -- ^ After `change` is called.
+    { onUp     :: Bool -> Handler ext a m  -- ^ /Before/ we go up or finally exit.
+    , onDown   :: dir  -> Handler ext a m  -- ^ /Before/ we go specified direction.
+    , onChange ::         Handler ext a m  -- ^ /After/ `change` is called.
     }
 
 -- | Configuration for zipper to run.
