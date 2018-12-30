@@ -83,8 +83,7 @@
 module Control.Zipp
     ( -- * Zipper
       Action
-    , with, Config(..)
-    , with'
+    , with
 
       -- * Basic actions
     , up, CantGoUp(..)
@@ -92,16 +91,9 @@ module Control.Zipp
     , peek
     , change
     , perform
-    , handle
 
       -- * Direction
     , Direction(..)
-
-      -- * Access to state extension
-    , plugState
-    , Handler
-    , Handlers(..)
-    , HandlersEnv, here, situation
 
       -- * Helpers
     , fromTraversal
@@ -109,10 +101,9 @@ module Control.Zipp
     )
   where
 
-import           Control.Monad        (when)
+import           Control.Monad        (when, unless)
 import           Control.Monad.Catch  (Exception, MonadCatch (..),
                                        MonadThrow (..))
-import           Control.Monad.Reader (MonadReader (..), ReaderT (..), asks)
 import           Control.Monad.State  (MonadState (..), MonadTrans (..),
                                        StateT (..), execStateT)
 
@@ -122,24 +113,16 @@ import           Lens.Micro.Platform  (SimpleGetter, Traversal', makeLenses,
                                        singular, to, use, (%=), (&), (.=), (.~),
                                        (^.), (^?))
 
-data ZipperState ext dir a m = ZipperState
-    { _ext   :: ext
-    , _locus :: a
-    , _loci  :: [Layer ext dir a m]
+data ZipperState dir a m = ZipperState
+    { _locus :: a
+    , _loci  :: [Layer dir a m]
     , _dirty :: Bool
     }
 
-data Layer ext dir a m = Layer
+data Layer dir a m = Layer
     { _cameFrom :: Direction dir a m
     , _place    :: a
     , _update   :: Bool
-    , _prevExt  :: ext
-    }
-
--- | The state the handler has access to.
-data HandlersEnv ext a = HandlersEnv
-    { _here      :: a
-    , _situation :: ext
     }
 
 -- | Basically, a move command to plug in `go`, with a "decomposed lens" inside.
@@ -154,26 +137,6 @@ data Direction dir a m = Direction
     , jamIn       :: a -> a -> m a
     }
 
--- | Type for pluggable reaction.
---
---   It is a stateful computation, that tells us if there's a need to mark object we're traversing dirty.
---
-type Handler ext a m = StateT (HandlersEnv ext a) m Bool
-
--- | Bag of handlers.
-data Handlers ext dir a m = Handlers
-    { onUp     :: Bool -> Handler ext a m  -- ^ /Before/ we go up or finally exit.
-    , onDown   :: dir  -> Handler ext a m  -- ^ /Before/ we go specified direction.
-    , onChange ::         Handler ext a m  -- ^ /After/ `change` is called.
-    , mergeExt :: ext  -> Handler ext a m
-    }
-
--- | Configuration for zipper to run.
-data Config ext dir a m = Config
-    { initial  :: ext                     -- ^ Initial plugin state.
-    , handlers :: Handlers ext dir a m    -- ^ Handlers.
-    }
-
 -- | Monad transformer. Can read handlers and read-write zipper state.
 --
 --   [@ext@] is an additional state
@@ -182,80 +145,39 @@ data Config ext dir a m = Config
 --   [@m@] is monad you enrich
 --   [@r@] is a result of the `Action`
 --
-newtype Action ext dir a m r = Action
-    { runAction :: ReaderT (Handlers ext dir a m) (StateT (ZipperState ext dir a m) m) r
+newtype Action dir a m r = Action
+    { runAction :: StateT (ZipperState dir a m) m r
     }
   deriving
     ( Functor
     , Applicative
     , Monad
-    , MonadState  (ZipperState ext dir a m)
-    , MonadReader (Handlers    ext dir a m)
+    , MonadState  (ZipperState dir a m)
     , MonadThrow
     , MonadCatch
     )
 
-instance MonadTrans (Action ext dir a) where
-    lift = Action . lift . lift
+instance MonadTrans (Action dir a) where
+    lift = Action . lift
 
 makeLenses ''ZipperState
 makeLenses ''Layer
-makeLenses ''HandlersEnv
-
--- | Allows accessing plugin state only.
-plugState :: Monad m => StateT ext m r -> Action ext dir a m r
-plugState action = do
-    pluginState         <- use ext
-    (res, pluginState') <- lift $ runStateT action pluginState
-    ext .= pluginState'
-    return res
-
-plugHandler :: Monad m => Handler ext a m -> Action ext dir a m ()
-plugHandler action = do
-    pluginState          <- use ext
-    loc                  <- use locus
-    (r, HandlersEnv a s) <- lift $ action `runStateT` HandlersEnv loc pluginState
-    ext   .= s
-    locus .= a
-    when r $ do
-        dirty .= True
 
 -- | Open a zipper with given config on given object, perform given action and then close.
-with :: MonadThrow m => Config ext dir a m -> a -> Action ext dir a m r -> m (r, a, ext)
-with (Config _ext handlers) _locus action = do
-    let start = ZipperState { _ext, _locus, _loci = [], _dirty = False }
-    (r, ZipperState ext' locus' [] _) <-
+with :: MonadThrow m => a -> Action dir a m r -> m (r, a)
+with _locus action = do
+    let start = ZipperState { _locus, _loci = [], _dirty = False }
+    (r, ZipperState locus' [] _) <-
         action <* exit
             & runAction
-            & (`runReaderT` handlers)
             & (`runStateT`  start)
 
-    return (r, locus', ext')
+    return (r, locus')
 
--- | Invoke an action with `()` as additional state and with inert handlers.
-with' :: MonadThrow m => a -> Action () dir a m r -> m (r, a)
-with' object action = multOne <$> with Config
-    { initial = ()
-    , handlers = Handlers
-        { onUp     = \_ -> return False
-        , onDown   = \_ -> return False
-        , onChange =       return False
-        }
-    }
-    object
-    action
-  where
-    multOne (a, b, ()) = (a, b)
-
-exit :: MonadThrow m => Action ext dir a m ()
+exit :: MonadThrow m => Action dir a m ()
 exit = do
     locs <- use loci
-    if null locs
-    then do
-        isDirty <- use dirty
-        plugHandler . ($ isDirty) =<< asks onUp
-
-    else do
+    unless (null locs) $ do
         _ <- up
         exit
 
@@ -271,7 +193,7 @@ instance Exception CantGoUp
 --
 --   Throws `CantGoUp` if you are in a root node.
 --
-up :: MonadThrow m => Action ext dir a m dir
+up :: MonadThrow m => Action dir a m dir
 up = do
     use loci >>= \case
         [] -> do
@@ -279,7 +201,6 @@ up = do
 
         prev : rest -> do
             isDirty <- use dirty
-            plugHandler . ($ isDirty) =<< asks onUp
 
             loci  .= rest
             if isDirty
@@ -294,8 +215,6 @@ up = do
                 locus .= prev^.place
                 dirty .= prev^.update
 
-            plugHandler . ($ _prevExt prev) =<< asks mergeExt
-
             return $ prev^.cameFrom.to designation
 
 -- | Thrown if its impossible to move where you want.
@@ -308,54 +227,36 @@ instance Exception CantGoThere
 --
 --   Throws `CantGoThere` if you can't move there.
 --
-go :: MonadThrow m => Direction dir a m -> Action ext dir a m ()
+go :: MonadThrow m => Direction dir a m -> Action dir a m ()
 go dir = do
     loc  <- use locus
     loc' <- lift $ tearOur dir loc
-
-    plugHandler . ($ designation dir) =<< asks onDown
-
     upd  <- use dirty
-    ext  <- use ext
 
-    loci  %= (Layer dir loc upd ext :)
+    loci  %= (Layer dir loc upd :)
     locus .= loc'
     dirty .= False
 
 -- | Apply the getter to the current locus and return the result.
-peek :: Monad m => SimpleGetter a r -> Action ext dir a m r
+peek :: Monad m => SimpleGetter a r -> Action dir a m r
 peek getter = use $ locus.getter
 
 -- | Perform given pure change on current locus of editation.
 --
 --   Marks node to update even if you pass `id`, calls `onChange` handler.
 --
-change :: Monad m => (a -> a) -> Action ext dir a m ()
+change :: Monad m => (a -> a) -> Action dir a m ()
 change f = do
     locus %= f
     dirty .= True
-    plugHandler =<< asks onChange
 
 -- | Perform given action in base nonad on the current locus of editation.
 --
 --   Marks node to update even if you pass `pure` or `return`, calls `onChange` handler.
 --
-perform :: Monad m => (a -> m a) -> Action ext dir a m ()
+perform :: Monad m => StateT a m r -> Action dir a m r
 perform f = do
-    (locus .=) =<< lift . f =<< use locus
-    dirty .= True
-    plugHandler =<< asks onChange
-
--- | Perform a handler-like computation on object and additional state.
---
---   Marks node to update even if you pass `pure` or `return`, calls `onChange` handler.
---
-handle :: Monad m => StateT (HandlersEnv ext a) m r -> Action ext dir a m r
-handle action = do
-    pluginState          <- use ext
-    loc                  <- use locus
-    (r, HandlersEnv a s) <- lift $ action `runStateT` HandlersEnv loc pluginState
-    ext   .= s
+    (r, a) <- lift . runStateT f =<< use locus
     locus .= a
     dirty .= True
     return r
@@ -367,14 +268,12 @@ handle action = do
 --   This will not touch state you are in, though. Just make sure
 --    you didn't put /mutable vars/ in there.
 --
-reconstruct :: MonadCatch m => Action ext dir a m a
+reconstruct :: MonadCatch m => Action dir a m a
 reconstruct = do
     s <- get
-    e <- ask
     lift $ do
         s' <- exit
             & runAction
-            & (`runReaderT` e)
             & (`execStateT` s)
         return (s'^.locus)
 
