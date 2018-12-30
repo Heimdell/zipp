@@ -23,7 +23,7 @@
     >   let left  = fromTraversal L l
     >   let right = fromTraversal R r
     >
-    >   (tree', res) <- with' tree $ do
+    >   (tree', res) <- with tree $ do
     >       go left
     >       go left
     >       change (naem .~ "HELLO")
@@ -38,42 +38,20 @@
 
     The 'tree'' should be a 'tree' with "lol" replaced by \"HELLO" and the 'res' would be "bar".
 
-    This example doesn't include `Handlers` for the sake of brevity. Basically, the are post-actions to
-    be done after you do something. They return a `Bool` and if its `False`, their effect on the object
-    is discarded (but not the effect on the additional state!).
-
     == Capabilites
 
     This is an implementation of iterator that can
 
-    1. `go` down the structure using a `Lens` (that might fail to deliver the destination).
+    1. `go` down the structure using a `Direction` (that might fail to deliver the destination).
     2. Go `up` to the parent node.
     3. Perform `change` on a node.
-    4. Do `plugState` to plug in some change on additional state.
 
-    Also, each of these `Action`s triggers a handler you provided.
-
-    You run it `with` some object, `Config`uration (additional state and `Handlers`) and an `Action`
-    to be performed. After its done with its actions, it reconstructs the object as a whole
-    - also returning final form of additional state and an action result.
-
-    You can also run it using `with'`. In that case you don't have to provide
-    additional state (will be `()`) and handlers (will be inert).
-
-    It also runs on top of any monad you like, and so do its handlers!
+    It runs on top of any monad you like!
     Just make sure you can `throwM` in it.
 
     It also doesn't put any constrains on traversed object whatsoever.
 
     You can traverse `Int` if you so choose, just find some `Direction`s or `Lens`es over it.
-
-    == Handlers.
-
-    Handlers are used if you want to update your structure after changes in some non-trivial way.
-
-    1. `onUp` will fire /before/ you go `up`, it will receive `Bool` argument specifying if there were any changes.
-    2. `onDown` will fire /before/ you `go` somewhere. It will also receive the name of the direction.
-    3. `onChange` will fire /after/ each change to the locus - so you can post-update your structure.
 
     == Dependencies
 
@@ -123,10 +101,11 @@ data ZipperState dir a m = ZipperState
     , _dirty :: Bool
     }
 
+-- | One layer of traversed structure.
 data Layer dir a m = Layer
-    { _cameFrom :: Direction dir a m
-    , _place    :: a
-    , _update   :: Bool
+    { _cameFrom :: Direction dir a m  -- ^ How to get back
+    , _place    :: a                  -- ^ Where /is/ the back
+    , _update   :: Bool               -- ^ Did we change anything?
     }
 
 -- | Basically, a move command to plug in `go`, with a "decomposed lens" inside.
@@ -136,14 +115,13 @@ data Layer dir a m = Layer
 --   and you need a `Monad` for it.
 --
 data Direction dir a m = Direction
-    { designation :: dir
-    , tearOut     :: a -> m a
-    , jamIn       :: a -> a -> m a
+    { designation :: dir            -- ^ The name of the direction
+    , tearOut     :: a -> m a       -- ^ The "getter"
+    , jamIn       :: a -> a -> m a  -- ^ The "setter": @whole@ -> @part@ -> @m whole@
     }
 
--- | Monad transformer. Can read handlers and read-write zipper state.
+-- | The action over edited object.
 --
---   [@ext@] is an additional state
 --   [@dir@] is a marker of `Direction`
 --   [@a@] is a type of object you traverse
 --   [@m@] is monad you enrich
@@ -167,7 +145,7 @@ instance MonadTrans (Action dir a) where
 makeLenses ''ZipperState
 makeLenses ''Layer
 
--- | Open a zipper with given config on given object, perform given action and then close.
+-- | Open given object in a zipper, perform given actions and then return the result and the new, changed object.
 with :: MonadThrow m => a -> Action dir a m r -> m (r, a)
 with _locus action = do
     let start = ZipperState { _locus, _loci = [], _dirty = False }
@@ -178,6 +156,7 @@ with _locus action = do
 
     return (r, locus')
 
+-- | "Close" the zipper, reconstructing the edited object.
 exit :: MonadThrow m => Action dir a m ()
 exit = do
     locs <- use loci
@@ -247,16 +226,16 @@ peek getter = use $ locus.getter
 
 -- | Perform given pure change on current locus of editation.
 --
---   Marks node to update even if you pass `id`, calls `onChange` handler.
+--   Marks node to update even if you pass `id`.
 --
 change :: Monad m => (a -> a) -> Action dir a m ()
 change f = do
     locus %= f
     dirty .= True
 
--- | Perform given action in base nonad on the current locus of editation.
+-- | Perform given action in base monad on the current locus of editation.
 --
---   Marks node to update even if you pass `pure` or `return`, calls `onChange` handler.
+--   Marks node to update even if you pass `pure` or `return`.
 --
 perform :: Monad m => StateT a m r -> Action dir a m r
 perform f = do
@@ -265,6 +244,7 @@ perform f = do
     dirty .= True
     return r
 
+-- | Goes `up` until it undoes movement from given direction.
 raiseUntilFrom :: (MonadThrow m, Eq dir) => dir -> Action dir a m ()
 raiseUntilFrom weSeek = aux
   where
@@ -273,6 +253,7 @@ raiseUntilFrom weSeek = aux
         unless (side == weSeek) $ do
             aux
 
+-- | Performs given action until it fails, like `many` from `Applicative`.
 whilePossible :: MonadCatch m => Action dir a m r -> Action dir a m ()
 whilePossible action = aux
   where
@@ -288,7 +269,7 @@ whilePossible action = aux
 
 -- | Retrieve whole object in this very moment.
 --
---   Warning: it will go `up` and call the `onUp` handlers!
+--   Warning: it will go `up`, calling `jamIn` actions. Beware of side effects!
 --
 --   This will not touch state you are in, though. Just make sure
 --    you didn't put /mutable vars/ in there.
