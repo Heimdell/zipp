@@ -230,7 +230,7 @@ instance Exception CantGoThere
 go :: MonadThrow m => Direction dir a m -> Action dir a m ()
 go dir = do
     loc  <- use locus
-    loc' <- lift $ tearOur dir loc
+    loc' <- lift $ tearOut dir loc
     upd  <- use dirty
 
     loci  %= (Layer dir loc upd :)
@@ -285,7 +285,7 @@ reconstruct = do
 fromTraversal :: MonadThrow m => dir -> Traversal' a a -> Direction dir a m
 fromTraversal designation traversal = Direction
     { designation
-    , tearOur = \s -> do
+    , tearOut = \s -> do
         case s^? traversal of
             Just it -> return it
             Nothing -> throwM CantGoThere
