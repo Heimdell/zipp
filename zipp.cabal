@@ -17,8 +17,15 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Control.Zipp
-  -- other-modules:       
-  -- other-extensions:    
+  default-extensions:
+    FlexibleContexts
+    GeneralizedNewtypeDeriving
+    LambdaCase
+    NamedFieldPuns
+    RankNTypes
+    ScopedTypeVariables
+    TemplateHaskell
+
   build-depends:       base, microlens-platform, mtl, exceptions, transformers
   hs-source-dirs:      src
   default-language:    Haskell2010
