@@ -133,7 +133,7 @@ data Layer dir a m = Layer
 --
 data Direction dir a m = Direction
     { designation :: dir
-    , tearOur     :: a -> m a
+    , tearOut     :: a -> m a
     , jamIn       :: a -> a -> m a
     }
 
