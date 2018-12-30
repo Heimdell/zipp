@@ -92,6 +92,10 @@ module Control.Zipp
     , change
     , perform
 
+      -- * Combinators
+    , whilePossible
+    , raiseUntilFrom
+
       -- * Direction
     , Direction(..)
 
