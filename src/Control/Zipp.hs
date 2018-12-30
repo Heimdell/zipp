@@ -29,14 +29,14 @@
     >       change (naem .~ "HELLO")
     >       up
     >       up
+    >       go right
+    >       go right
     >       res <- peek naem
-    >       go right
-    >       go right
-    >       return res
+    >       return (res ++ "?")
     >
     >   print res
 
-    The 'tree'' should be a 'tree' with "lol" replaced by \"HELLO" and the 'res' would be "bar".
+    The 'tree'' should be a 'tree' with "lol" replaced by \"HELLO" and the 'res' would be "bar?".
 
     == Capabilites
 
