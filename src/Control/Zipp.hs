@@ -261,6 +261,27 @@ perform f = do
     dirty .= True
     return r
 
+raiseUntilFrom :: (MonadThrow m, Eq dir) => dir -> Action dir a m ()
+raiseUntilFrom weSeek = aux
+  where
+    aux = do
+        side <- up
+        unless (side == weSeek) $ do
+            aux
+
+whilePossible :: MonadCatch m => Action dir a m r -> Action dir a m ()
+whilePossible action = aux
+  where
+    aux = do
+        possible <- do
+            _ <- action
+            return True
+          `catch` \CantGoThere -> do
+            return False
+
+        when possible $ do
+            aux
+
 -- | Retrieve whole object in this very moment.
 --
 --   Warning: it will go `up` and call the `onUp` handlers!
