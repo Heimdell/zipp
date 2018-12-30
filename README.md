@@ -27,15 +27,15 @@ _* You still need to provide `Lens`es, `Traversal`s or `Direction`s, though._
             change (naem .~ "HELLO")
             up
             up
+            go right
+            go right
             res <- peek naem
-            go right
-            go right
-            return res
+            return (res ++ "?")
       
         print res
 ```
 
-The `tree'` should be a `tree` with `"lol"` replaced by `"HELLO"` and the `res` would be `"bar"`.
+The `tree'` should be a `tree` with `"lol"` replaced by `"HELLO"` and the `res` would be `"bar?"`.
 
 This example doesn't include `Handlers` for the sake of brevity. Basically, the are post-actions to
 be done after you do something. They return a `Bool` and if its `False`, their effect on the object
